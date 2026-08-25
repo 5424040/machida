@@ -1,16 +1,4 @@
-// main.js
-
-/* -------------------------
-   基本設定
-------------------------- */
-
 const MACHIDA = "町田市";
-
-const viewport = {
-    width: 0,
-    height: 0,
-    aspect: 2.15
-};
 
 const margin = {
     top: 70,
@@ -19,309 +7,182 @@ const margin = {
     left: 70
 };
 
-const legendOffset = {
-    x: -130,
-    y: 0
-};
-
-
-/* -------------------------
-   コンテナ
-------------------------- */
-
-let viewportContainer;
-let chartContainer;
-let axisContainer;
-let xAxisGroup;
-let axisUnit;
-let tooltipContainer;
-let legendContainer;
-let zeroLine;
-
-
-/* -------------------------
-   データ
-------------------------- */
-
-let dataAll = [];
-
-
-/* -------------------------
-   選択できる指標
-------------------------- */
-
 const dimensions = [
-
     {
         label: "社会増減",
         value: "socialChange",
         unit: "人",
+        type: "change",
+        group: "social",
         title: "社会増減（転入者数 − 転出者数）",
         description: "2024年・0より右が転入超過、左が転出超過"
     },
-
+    {
+        label: "転入者数",
+        value: "moveIn",
+        unit: "人",
+        type: "count",
+        group: "social",
+        title: "転入者数",
+        description: "2024年・東京都の市ごとの転入者数"
+    },
+    {
+        label: "転出者数",
+        value: "moveOut",
+        unit: "人",
+        type: "count",
+        group: "social",
+        title: "転出者数",
+        description: "2024年・東京都の市ごとの転出者数"
+    },
     {
         label: "自然増減",
         value: "naturalChange",
         unit: "人",
+        type: "change",
+        group: "natural",
         title: "自然増減（出生数 − 死亡数）",
         description: "2023年・0より右が自然増、左が自然減"
+    },
+    {
+        label: "出生数",
+        value: "births",
+        unit: "人",
+        type: "count",
+        group: "natural",
+        title: "出生数",
+        description: "2023年・東京都の市ごとの出生数"
+    },
+    {
+        label: "死亡数",
+        value: "deaths",
+        unit: "人",
+        type: "count",
+        group: "natural",
+        title: "死亡数",
+        description: "2023年・東京都の市ごとの死亡数"
     }
-
 ];
 
-
-const state = {
-
-    selectedDimension: dimensions[0].value,
-
-    selectedUnit: dimensions[0].unit,
-
-    selectedLabel: dimensions[0].label,
-
-    selectedTitle: dimensions[0].title,
-
-    selectedDescription: dimensions[0].description
-
-};
+let state = dimensions[0];
+let data = [];
+let width = 0;
+let height = 0;
 
 
-/* -------------------------
+/* =========================
    スケール
-------------------------- */
+========================= */
 
 const xScale = d3.scaleLinear();
 
-const areaScale = d3.scaleSqrt();
+const areaScale = d3
+    .scaleSqrt()
+    .range([7, 23]);
 
-const colorScale = d3.scaleOrdinal()
+const colorScale = d3
+    .scaleOrdinal()
     .domain(["町田市", "その他の市"])
-    .range([
-        "#f97316",
-        "#38bdf8"
-    ]);
-
-const beeRadiusRange = [7, 23];
+    .range(["#f97316", "#38bdf8"]);
 
 
-/* -------------------------
-   数値表示
-------------------------- */
+/* =========================
+   SVG
+========================= */
+
+const container = d3.select("#viewportContainer");
+
+const svg = container
+    .append("svg")
+    .attr("id", "svgArea");
+
+const zeroLine = svg
+    .append("line")
+    .attr("class", "zero-line");
+
+const chart = svg
+    .append("g");
+
+const axis = svg
+    .append("g")
+    .attr("class", "axis");
+
+const axisUnit = svg
+    .append("g")
+    .attr("class", "axis-unit");
+
+const legend = svg
+    .append("g")
+    .attr("class", "legend");
+
+const tooltip = container
+    .append("div")
+    .attr("id", "tooltipContainer")
+    .style("opacity", 0);
+
+
+/* =========================
+   表示関数
+========================= */
 
 function formatValue(value) {
 
-    const numericValue = Number(value);
+    const n = Number(value);
 
-    if (Number.isFinite(numericValue)) {
-        return numericValue.toLocaleString("ja-JP");
+    if (!Number.isFinite(n)) {
+        return "-";
     }
 
-    return value;
-
+    return n.toLocaleString("ja-JP");
 }
 
 
-/* -------------------------
-   + / - 表示
-------------------------- */
+function formatSigned(value) {
 
-function formatSignedValue(value) {
+    const n = Number(value);
 
-    const number = Number(value);
-
-    if (number > 0) {
-        return `+${formatValue(number)}`;
+    if (n > 0) {
+        return `+${formatValue(n)}`;
     }
 
-    if (number < 0) {
-        return `−${formatValue(Math.abs(number))}`;
+    if (n < 0) {
+        return `−${formatValue(Math.abs(n))}`;
     }
 
     return "0";
-
 }
 
 
-/* -------------------------
-   円のカテゴリ
-------------------------- */
+function formatSelected(value) {
 
-function getCityType(d) {
-
-    if (d.municipality === MACHIDA) {
-        return "町田市";
+    if (state.type === "change") {
+        return formatSigned(value);
     }
 
-    return "その他の市";
-
+    return formatValue(value);
 }
 
 
-/* -------------------------
-   Beeswarm中央Y
-------------------------- */
-
-function getBeeY() {
+function centerY() {
 
     return (
         margin.top +
-        ((viewport.height - margin.top - margin.bottom) / 2)
+        (height - margin.top - margin.bottom) / 2
     );
-
 }
 
 
-/* -------------------------
-   画面サイズ取得
-------------------------- */
+function cityType(d) {
 
-function getWindowSize() {
-
-    const container =
-        document.querySelector("#viewportContainer");
-
-    const containerWidth =
-        container.getBoundingClientRect().width;
-
-    viewport.width =
-        Math.max(
-            Math.round(containerWidth),
-            320
-        );
-
-    viewport.height =
-        Math.max(
-            Math.round(
-                viewport.width / viewport.aspect
-            ),
-            360
-        );
-
+    return d.municipality === MACHIDA
+        ? "町田市"
+        : "その他の市";
 }
 
 
-/* -------------------------
-   SVG初期化
-------------------------- */
-
-function initViewport() {
-
-    viewportContainer =
-        d3.select("#viewportContainer")
-            .append("svg")
-            .attr("id", "svgArea")
-            .attr("width", viewport.width)
-            .attr("height", viewport.height)
-            .attr(
-                "viewBox",
-                `0 0 ${viewport.width} ${viewport.height}`
-            )
-            .attr(
-                "preserveAspectRatio",
-                "xMidYMid"
-            );
-
-
-    zeroLine =
-        viewportContainer
-            .append("line")
-            .attr("class", "zero-line");
-
-
-    chartContainer =
-        viewportContainer
-            .append("g")
-            .attr(
-                "id",
-                "chartContainer"
-            );
-
-
-    axisContainer =
-        viewportContainer
-            .append("g")
-            .attr(
-                "id",
-                "axisContainer"
-            )
-            .attr(
-                "transform",
-                `translate(0,${viewport.height - margin.bottom})`
-            );
-
-
-    xAxisGroup =
-        axisContainer
-            .append("g")
-            .attr(
-                "id",
-                "xAxis"
-            )
-            .attr(
-                "class",
-                "axis"
-            );
-
-
-    axisUnit =
-        axisContainer
-            .append("g")
-            .attr(
-                "id",
-                "axisUnit"
-            )
-            .attr(
-                "class",
-                "axis-unit"
-            )
-            .attr(
-                "transform",
-                `translate(${viewport.width - margin.right},-20)`
-            )
-            .attr(
-                "text-anchor",
-                "end"
-            );
-
-
-    tooltipContainer =
-        d3.select("#viewportContainer")
-            .append("div")
-            .attr(
-                "id",
-                "tooltipContainer"
-            )
-            .style(
-                "opacity",
-                0
-            );
-
-
-    legendContainer =
-        viewportContainer
-            .append("g")
-            .attr(
-                "id",
-                "legendContainer"
-            )
-            .attr(
-                "class",
-                "legend"
-            )
-            .attr(
-                "transform",
-                `translate(
-                    ${viewport.width - margin.right + legendOffset.x},
-                    ${margin.top + legendOffset.y}
-                )`
-            );
-
-}
-
-
-/* -------------------------
-   データ読み込み
-------------------------- */
+/* =========================
+   CSV読み込み
+========================= */
 
 async function loadData() {
 
@@ -330,211 +191,139 @@ async function loadData() {
     );
 
     if (!response.ok) {
-        throw new Error("SSDSE-A-2026.csvを読み込めませんでした");
+        throw new Error(
+            "SSDSE-A-2026.csvを読み込めませんでした"
+        );
     }
 
+    const buffer =
+        await response.arrayBuffer();
 
-    // SSDSE-A-2026.csvはShift-JISなので、
-    // そのままd3.csv()ではなくTextDecoderを使う
-    const buffer = await response.arrayBuffer();
+    const text =
+        new TextDecoder("shift_jis")
+            .decode(buffer);
 
-    const text = new TextDecoder(
-        "shift_jis"
-    ).decode(buffer);
-
-
-    const rows = d3.csvParseRows(text);
-
-
-    /*
-        0行目：変数コード
-        1行目：年度
-        2行目：日本語の項目名
-        3行目以降：実データ
-    */
+    const rows =
+        d3.csvParseRows(text);
 
     const header = rows[0];
 
+    const index = {
+        population: header.indexOf("A1101"),
+        births: header.indexOf("A4101"),
+        deaths: header.indexOf("A4200"),
+        moveIn: header.indexOf("A5101"),
+        moveOut: header.indexOf("A5102")
+    };
 
-    function getColumnIndex(code) {
-
-        return header.indexOf(code);
-
+    if (
+        Object.values(index)
+            .some(i => i === -1)
+    ) {
+        throw new Error(
+            "CSVに必要なデータがありません"
+        );
     }
 
-
-    const populationIndex =
-        getColumnIndex("A1101");
-
-    const birthsIndex =
-        getColumnIndex("A4101");
-
-    const deathsIndex =
-        getColumnIndex("A4200");
-
-    const moveInIndex =
-        getColumnIndex("A5101");
-
-    const moveOutIndex =
-        getColumnIndex("A5102");
-
-
-    dataAll = rows
+    data = rows
         .slice(3)
 
-        // 東京都だけ
-        .filter(function(row) {
+        .filter(row =>
+            row[1] === "東京都" &&
+            row[2] &&
+            row[2].endsWith("市")
+        )
 
-            return (
-                row[1] === "東京都" &&
-                row[2].endsWith("市")
-            );
-
-        })
-
-        // 必要な項目だけ扱いやすい形にする
-        .map(function(row) {
+        .map(row => {
 
             const population =
-                Number(
-                    row[populationIndex]
-                );
+                Number(row[index.population]);
 
             const births =
-                Number(
-                    row[birthsIndex]
-                );
+                Number(row[index.births]);
 
             const deaths =
-                Number(
-                    row[deathsIndex]
-                );
+                Number(row[index.deaths]);
 
             const moveIn =
-                Number(
-                    row[moveInIndex]
-                );
+                Number(row[index.moveIn]);
 
             const moveOut =
-                Number(
-                    row[moveOutIndex]
-                );
-
+                Number(row[index.moveOut]);
 
             return {
-
-                code: row[0],
-
-                prefecture: row[1],
-
                 municipality: row[2],
 
-                population: population,
+                population,
+                births,
+                deaths,
+                moveIn,
+                moveOut,
 
-                births: births,
-
-                deaths: deaths,
-
-                moveIn: moveIn,
-
-                moveOut: moveOut,
-
-
-                // 社会増減
                 socialChange:
                     moveIn - moveOut,
 
-
-                // 自然増減
                 naturalChange:
                     births - deaths
-
             };
-
-        });
-
-
-    console.log(
-        "読み込んだデータ",
-        dataAll
-    );
-
-
-    console.log(
-        "町田市",
-        dataAll.find(function(d) {
-            return d.municipality === "町田市";
         })
-    );
 
+        .filter(d =>
+            Number.isFinite(d.population) &&
+            Number.isFinite(d.births) &&
+            Number.isFinite(d.deaths) &&
+            Number.isFinite(d.moveIn) &&
+            Number.isFinite(d.moveOut)
+        );
+
+    if (!data.length) {
+        throw new Error(
+            "東京都の市データが見つかりませんでした"
+        );
+    }
 }
 
 
-/* -------------------------
-   選択UI
-------------------------- */
+/* =========================
+   切り替えボタン
+========================= */
 
 function initControls() {
 
-    const controls =
-        d3.select("#variableSelector")
-            .append("form")
-            .attr(
-                "class",
-                "flex flex-wrap items-center justify-center gap-3"
-            )
-            .selectAll("label")
-            .data(
-                dimensions,
-                function(d) {
-                    return d.value;
-                }
-            )
-            .join("label")
-            .attr(
-                "class",
-                "control-label"
-            );
-
+    const controls = d3
+        .select("#variableSelector")
+        .append("form")
+        .attr(
+            "class",
+            "flex flex-wrap items-center justify-center gap-3"
+        )
+        .selectAll("label")
+        .data(
+            dimensions,
+            d => d.value
+        )
+        .join("label")
+        .attr(
+            "class",
+            "control-label"
+        );
 
     controls
         .append("input")
-        .attr(
-            "type",
-            "radio"
-        )
+        .attr("type", "radio")
         .attr(
             "class",
             "control-radio measure"
         )
-        .attr(
-            "name",
-            "measure"
-        )
-        .attr(
-            "id",
-            function(d, i) {
-                return `measure_${i}`;
-            }
-        )
+        .attr("name", "measure")
         .attr(
             "value",
-            function(d) {
-                return d.value;
-            }
+            d => d.value
         )
         .property(
             "checked",
-            function(d) {
-
-                return (
-                    d.value ===
-                    state.selectedDimension
-                );
-
-            }
+            d => d.value === state.value
         );
-
 
     controls
         .append("span")
@@ -542,173 +331,125 @@ function initControls() {
             "class",
             "control-chip"
         )
-        .text(
-            function(d) {
-                return d.label;
-            }
-        );
-
+        .text(d => d.label);
 
     d3.selectAll(".measure")
         .on(
             "change",
-            async function(event) {
+            function(event) {
 
-                state.selectedDimension =
-                    event.currentTarget.value;
-
-
-                const selectedDimension =
-                    dimensions.find(
-                        function(dimension) {
-
-                            return (
-                                dimension.value ===
-                                state.selectedDimension
-                            );
-
-                        }
-                    );
-
-
-                state.selectedUnit =
-                    selectedDimension.unit;
-
-                state.selectedLabel =
-                    selectedDimension.label;
-
-                state.selectedTitle =
-                    selectedDimension.title;
-
-                state.selectedDescription =
-                    selectedDimension.description;
-
-
-                document
-                    .querySelector("#chartTitle")
-                    .textContent =
-                    state.selectedTitle;
-
-
-                document
-                    .querySelector("#chartDescription")
-                    .textContent =
-                    state.selectedDescription;
-
-
-                await runSteps([
-
-                    setScales,
-
-                    parseData,
-
-                    renderAxes,
-
-                    renderLegend,
-
-                    renderBees,
-
-                    bindInteractions
-
-                ]);
-
-            }
-        );
-
-}
-
-
-/* -------------------------
-   スケール設定
-------------------------- */
-
-function setScales() {
-
-    const values =
-        dataAll.map(
-            function(d) {
-
-                return Number(
-                    d[state.selectedDimension]
+                state = dimensions.find(
+                    d =>
+                        d.value ===
+                        event.currentTarget.value
                 );
 
+                update(true);
             }
         );
-
-
-    const minValue =
-        Math.min(
-            0,
-            d3.min(values)
-        );
-
-
-    const maxValue =
-        Math.max(
-            0,
-            d3.max(values)
-        );
-
-
-    const difference =
-        maxValue - minValue;
-
-
-    const padding =
-        difference === 0
-            ? 1
-            : difference * 0.08;
-
-
-    xScale
-        .domain([
-            minValue - padding,
-            maxValue + padding
-        ])
-        .nice()
-        .range([
-            margin.left,
-            viewport.width - margin.right
-        ]);
-
-
-    areaScale
-        .domain(
-            d3.extent(
-                dataAll,
-                function(d) {
-                    return d.population;
-                }
-            )
-        )
-        .range(
-            beeRadiusRange
-        );
-
 }
 
 
-/* -------------------------
-   Force Simulation
-------------------------- */
+/* =========================
+   サイズ・配置計算
+========================= */
 
-function parseData() {
+function calculateLayout() {
+
+    const element =
+        document.querySelector(
+            "#viewportContainer"
+        );
+
+    width = Math.max(
+        Math.round(
+            element
+                .getBoundingClientRect()
+                .width
+        ),
+        320
+    );
+
+    height = Math.max(
+        Math.round(width / 2.15),
+        360
+    );
+
+    svg
+        .attr("width", width)
+        .attr("height", height)
+        .attr(
+            "viewBox",
+            `0 0 ${width} ${height}`
+        );
+
+    const values =
+        data.map(
+            d => d[state.value]
+        );
+
+    if (state.type === "change") {
+
+        const min =
+            Math.min(
+                0,
+                d3.min(values)
+            );
+
+        const max =
+            Math.max(
+                0,
+                d3.max(values)
+            );
+
+        const padding =
+            Math.max(
+                (max - min) * 0.08,
+                1
+            );
+
+        xScale
+            .domain([
+                min - padding,
+                max + padding
+            ])
+            .nice();
+
+    } else {
+
+        const max =
+            d3.max(values);
+
+        xScale
+            .domain([
+                0,
+                max * 1.08
+            ])
+            .nice();
+    }
+
+    xScale.range([
+        margin.left,
+        width - margin.right
+    ]);
+
+    areaScale.domain(
+        d3.extent(
+            data,
+            d => d.population
+        )
+    );
 
     const simulation =
-        d3.forceSimulation(dataAll)
+        d3.forceSimulation(data)
 
             .force(
                 "x",
                 d3.forceX(
-                    function(d) {
-
-                        return xScale(
-                            Number(
-                                d[state.selectedDimension]
-                            )
-                        );
-
-                    }
+                    d =>
+                        xScale(
+                            d[state.value]
+                        )
                 )
                 .strength(2)
             )
@@ -716,692 +457,553 @@ function parseData() {
             .force(
                 "y",
                 d3.forceY(
-                    getBeeY()
+                    centerY()
                 )
                 .strength(0.12)
             )
 
             .force(
                 "collide",
-                d3.forceCollide()
-                    .radius(
-                        function(d) {
-
-                            return (
-                                areaScale(
-                                    d.population
-                                ) + 2
-                            );
-
-                        }
-                    )
+                d3.forceCollide(
+                    d =>
+                        areaScale(
+                            d.population
+                        ) + 2
+                )
             )
 
             .stop();
 
-
     simulation.tick(350);
-
 }
 
 
-/* -------------------------
+/* =========================
    軸
-------------------------- */
+========================= */
 
-function renderAxes() {
+function renderAxis(animate) {
 
     const xAxis =
         d3.axisBottom(xScale)
-
             .ticks(
-                viewport.width < 600
+                width < 600
                     ? 5
                     : 9
             )
-
             .tickSizeOuter(0)
-
             .tickFormat(
-                function(d) {
-                    return formatSignedValue(d);
-                }
+                d =>
+                    state.type === "change"
+                        ? formatSigned(d)
+                        : formatValue(d)
             );
 
-
-    axisContainer
-        .attr(
-            "transform",
-            `translate(0,${viewport.height - margin.bottom})`
-        );
-
-
-    xAxisGroup
-
-        .transition()
-
-        .duration(1000)
-
-        .call(xAxis);
-
-
-    axisUnit
-
-        .attr(
-            "transform",
-            `translate(${viewport.width - margin.right},-20)`
-        )
-
-        .selectAll("text")
-
-        .data([
-            state.selectedUnit
-        ])
-
-        .join("text")
-
-        .attr(
-            "class",
-            "units"
-        )
-
-        .text(
-            function(d) {
-                return d;
-            }
-        );
-
-
-    zeroLine
-
-        .transition()
-
-        .duration(1000)
-
-        .attr(
-            "x1",
-            xScale(0)
-        )
-
-        .attr(
-            "x2",
-            xScale(0)
-        )
-
-        .attr(
-            "y1",
-            margin.top
-        )
-
-        .attr(
-            "y2",
-            viewport.height -
-            margin.bottom
-        );
-
-}
-
-
-/* -------------------------
-   凡例
-------------------------- */
-
-function renderLegend() {
-
-    legendContainer
-
+    axis
         .attr(
             "transform",
             `translate(
-                ${viewport.width - margin.right + legendOffset.x},
-                ${margin.top + legendOffset.y}
+                0,
+                ${height - margin.bottom}
             )`
-        );
+        )
+        .interrupt();
+
+    if (animate) {
+
+        axis
+            .transition()
+            .duration(1000)
+            .ease(d3.easeCubicInOut)
+            .call(xAxis);
+
+    } else {
+
+        axis.call(xAxis);
+    }
+
+    axisUnit
+        .attr(
+            "transform",
+            `translate(
+                ${width - margin.right},
+                ${height - margin.bottom - 20}
+            )`
+        )
+        .attr(
+            "text-anchor",
+            "end"
+        )
+        .selectAll("text")
+        .data([state.unit])
+        .join("text")
+        .text(d => d);
 
 
-    const legend =
-        d3.legendColor()
+    zeroLine.interrupt();
 
-            .shape(
-                "circle"
-            )
+    if (state.type === "change") {
 
-            .shapeRadius(6)
+        zeroLine
+            .style("opacity", 0.7);
 
-            .shapePadding(8)
+        if (animate) {
 
-            .labelOffset(8)
+            zeroLine
+                .transition()
+                .duration(1000)
+                .ease(d3.easeCubicInOut)
+                .attr("x1", xScale(0))
+                .attr("x2", xScale(0))
+                .attr("y1", margin.top)
+                .attr(
+                    "y2",
+                    height - margin.bottom
+                );
 
-            .scale(
-                colorScale
-            );
+        } else {
 
+            zeroLine
+                .attr("x1", xScale(0))
+                .attr("x2", xScale(0))
+                .attr("y1", margin.top)
+                .attr(
+                    "y2",
+                    height - margin.bottom
+                );
+        }
 
-    legendContainer
-        .call(
-            legend
-        );
+    } else {
 
+        zeroLine
+            .style("opacity", 0);
+    }
 }
 
 
-/* -------------------------
-   円描画
-------------------------- */
+/* =========================
+   凡例
+========================= */
 
-function renderBees() {
+function renderLegend() {
 
-    const bees =
-        chartContainer
-            .selectAll(".bee")
+    const items = [
+        "町田市",
+        "その他の市"
+    ];
 
-            .data(
-                dataAll,
-                function(d) {
-                    return d.municipality;
-                }
-            )
+    legend
+        .attr(
+            "transform",
+            `translate(
+                ${width - margin.right - 130},
+                ${margin.top}
+            )`
+        );
 
-            .join(
+    legend
+        .selectAll("circle")
+        .data(items)
+        .join("circle")
+        .attr("cx", 0)
+        .attr(
+            "cy",
+            (_, i) => i * 24
+        )
+        .attr("r", 6)
+        .attr(
+            "fill",
+            d => colorScale(d)
+        );
 
-                function(enter) {
-
-                    return enter
-                        .append("circle")
-
-                        .attr(
-                            "class",
-                            "bee"
-                        )
-
-                        .attr(
-                            "cx",
-                            xScale(0)
-                        )
-
-                        .attr(
-                            "cy",
-                            getBeeY()
-                        )
-
-                        .attr(
-                            "r",
-                            0
-                        )
-
-                        .style(
-                            "fill",
-                            "#ffffff"
-                        )
-
-                        .style(
-                            "stroke",
-                            "#ffffff"
-                        )
-
-                        .style(
-                            "stroke-width",
-                            1.5
-                        )
-
-                        .style(
-                            "fill-opacity",
-                            0.9
-                        );
-
-                },
+    legend
+        .selectAll("text")
+        .data(items)
+        .join("text")
+        .attr("x", 14)
+        .attr(
+            "y",
+            (_, i) => i * 24 + 4
+        )
+        .text(d => d);
+}
 
 
-                function(update) {
+/* =========================
+   円
+========================= */
 
-                    return update;
+function renderBees(animate) {
 
-                },
+    const bees = chart
+        .selectAll(".bee")
 
+        .data(
+            data,
+            d => d.municipality
+        )
 
-                function(exit) {
+        .join(
 
-                    exit
+            enter =>
+                enter
+                    .append("circle")
+                    .attr(
+                        "class",
+                        "bee"
+                    )
+                    .attr(
+                        "cx",
+                        xScale(0)
+                    )
+                    .attr(
+                        "cy",
+                        centerY()
+                    )
+                    .attr("r", 0)
+                    .style(
+                        "fill-opacity",
+                        0.9
+                    ),
 
-                        .transition()
+            update => update,
 
-                        .duration(500)
-
-                        .attr(
-                            "r",
-                            0
-                        )
-
-                        .remove();
-
-
-                    return exit;
-
-                }
-
-            );
+            exit =>
+                exit
+                    .transition()
+                    .duration(500)
+                    .attr("r", 0)
+                    .remove()
+        );
 
 
     bees
+        .on(
+            "mousemove",
+            showTooltip
+        )
+        .on(
+            "mouseout",
+            () =>
+                tooltip.style(
+                    "opacity",
+                    0
+                )
+        );
 
-        .transition()
+    bees.interrupt();
 
-        .duration(1500)
+    let circles = bees;
 
+    if (animate) {
+
+        circles = bees
+            .transition()
+            .duration(1500)
+            .ease(
+                d3.easeCubicInOut
+            );
+    }
+
+    circles
         .attr(
             "cx",
-            function(d) {
-                return d.x;
-            }
+            d => d.x
         )
-
         .attr(
             "cy",
-            function(d) {
-                return d.y;
-            }
+            d => d.y
         )
-
         .attr(
             "r",
-            function(d) {
-
-                return areaScale(
+            d =>
+                areaScale(
                     d.population
-                );
-
-            }
+                )
         )
-
         .style(
             "fill",
-            function(d) {
-
-                return colorScale(
-                    getCityType(d)
-                );
-
-            }
+            d =>
+                colorScale(
+                    cityType(d)
+                )
         )
-
         .style(
             "stroke",
-            function(d) {
-
-                if (
-                    d.municipality ===
-                    MACHIDA
-                ) {
-
-                    return "#7c2d12";
-
-                }
-
-                return "#ffffff";
-
-            }
+            d =>
+                d.municipality === MACHIDA
+                    ? "#7c2d12"
+                    : "#ffffff"
         )
-
         .style(
             "stroke-width",
-            function(d) {
-
-                if (
-                    d.municipality ===
-                    MACHIDA
-                ) {
-
-                    return 3;
-
-                }
-
-                return 1.5;
-
-            }
+            d =>
+                d.municipality === MACHIDA
+                    ? 3
+                    : 1.5
         );
 
+    renderMachidaLabel(animate);
+}
 
-    const machidaData =
-        dataAll.filter(
-            function(d) {
 
-                return (
-                    d.municipality ===
-                    MACHIDA
-                );
+/* =========================
+   町田市ラベル
+========================= */
 
-            }
+function renderMachidaLabel(animate) {
+
+    const machida =
+        data.filter(
+            d =>
+                d.municipality ===
+                MACHIDA
         );
 
-
-    chartContainer
-        .selectAll(".machida-label")
-
-        .data(
-            machidaData,
-            function(d) {
-                return d.municipality;
-            }
+    const label = chart
+        .selectAll(
+            ".machida-label"
         )
-
+        .data(
+            machida,
+            d => d.municipality
+        )
         .join("text")
-
         .attr(
             "class",
             "machida-label"
         )
-
         .attr(
             "text-anchor",
             "start"
         )
+        .text(MACHIDA);
 
-        .text(
-            "町田市"
-        )
+    label.interrupt();
 
-        .transition()
+    let selection = label;
 
-        .duration(1500)
+    if (animate) {
 
-        .attr(
-            "x",
-            function(d) {
-
-                return (
-                    d.x +
-                    areaScale(
-                        d.population
-                    ) +
-                    7
-                );
-
-            }
-        )
-
-        .attr(
-            "y",
-            function(d) {
-
-                return d.y + 4;
-
-            }
-        );
-
-}
-
-
-/* -------------------------
-   Tooltip
-------------------------- */
-
-function bindInteractions() {
-
-    chartContainer
-        .selectAll(".bee")
-
-        .on(
-            "mousemove",
-            function(event) {
-
-                const d =
-                    d3.select(this)
-                        .datum();
-
-
-                const container =
-                    document.querySelector(
-                        "#viewportContainer"
-                    );
-
-
-                const containerRect =
-                    container
-                        .getBoundingClientRect();
-
-
-                let details;
-
-
-                if (
-                    state.selectedDimension ===
-                    "socialChange"
-                ) {
-
-                    details = `
-                        転入者数:
-                        <strong>
-                            ${formatValue(d.moveIn)}人
-                        </strong>
-                        <br>
-
-                        転出者数:
-                        <strong>
-                            ${formatValue(d.moveOut)}人
-                        </strong>
-                    `;
-
-                } else {
-
-                    details = `
-                        出生数:
-                        <strong>
-                            ${formatValue(d.births)}人
-                        </strong>
-                        <br>
-
-                        死亡数:
-                        <strong>
-                            ${formatValue(d.deaths)}人
-                        </strong>
-                    `;
-
-                }
-
-
-                tooltipContainer
-
-                    .html(
-                        `
-                        市:
-                        <strong>
-                            ${d.municipality}
-                        </strong>
-                        <br>
-
-                        ${state.selectedLabel}:
-                        <strong>
-                            ${formatSignedValue(
-                                d[state.selectedDimension]
-                            )}人
-                        </strong>
-                        <br>
-
-                        ${details}
-
-                        <br>
-
-                        2020年人口:
-                        <strong>
-                            ${formatValue(
-                                d.population
-                            )}人
-                        </strong>
-                        `
-                    )
-
-                    .style(
-                        "top",
-                        `${
-                            event.clientY -
-                            containerRect.top -
-                            12
-                        }px`
-                    )
-
-                    .style(
-                        "left",
-                        `${
-                            event.clientX -
-                            containerRect.left +
-                            25
-                        }px`
-                    )
-
-                    .style(
-                        "opacity",
-                        0.96
-                    );
-
-
-                d3.select(this)
-                    .raise();
-
-            }
-        )
-
-
-        .on(
-            "mouseout",
-            function() {
-
-                tooltipContainer
-                    .style(
-                        "opacity",
-                        0
-                    );
-
-            }
-        );
-
-}
-
-
-/* -------------------------
-   リサイズ
-------------------------- */
-
-async function updateLayout() {
-
-    getWindowSize();
-
-
-    viewportContainer
-
-        .attr(
-            "width",
-            viewport.width
-        )
-
-        .attr(
-            "height",
-            viewport.height
-        )
-
-        .attr(
-            "viewBox",
-            `0 0 ${viewport.width} ${viewport.height}`
-        );
-
-
-    await runSteps([
-
-        setScales,
-
-        parseData,
-
-        renderAxes,
-
-        renderLegend,
-
-        renderBees,
-
-        bindInteractions
-
-    ]);
-
-}
-
-
-/* -------------------------
-   実行
-------------------------- */
-
-async function initApp() {
-
-    await runSteps([
-
-        getWindowSize,
-
-        initViewport,
-
-        loadData,
-
-        initControls,
-
-        setScales,
-
-        parseData,
-
-        renderAxes,
-
-        renderLegend,
-
-        renderBees,
-
-        bindInteractions
-
-    ]);
-
-
-    let resizeTimer;
-
-
-    window.addEventListener(
-        "resize",
-        function() {
-
-            clearTimeout(
-                resizeTimer
+        selection = label
+            .transition()
+            .duration(1500)
+            .ease(
+                d3.easeCubicInOut
             );
-
-
-            resizeTimer =
-                setTimeout(
-                    updateLayout,
-                    150
-                );
-
-        }
-    );
-
-}
-
-
-/* -------------------------
-   順番に関数実行
-------------------------- */
-
-async function runSteps(steps) {
-
-    for (
-        const step of steps
-    ) {
-
-        await step();
-
     }
 
+    selection
+        .attr(
+            "x",
+            d =>
+                d.x +
+                areaScale(
+                    d.population
+                ) +
+                7
+        )
+        .attr(
+            "y",
+            d => d.y + 4
+        );
 }
 
 
-initApp()
-    .catch(
-        function(error) {
+/* =========================
+   Tooltip
+========================= */
 
-            console.error(
-                error
+function showTooltip(event, d) {
+
+    const rect =
+        document
+            .querySelector(
+                "#viewportContainer"
+            )
+            .getBoundingClientRect();
+
+    let details = "";
+
+    if (state.group === "social") {
+
+        details = `
+            転入者数:
+            <strong>
+                ${formatValue(d.moveIn)}人
+            </strong>
+            <br>
+
+            転出者数:
+            <strong>
+                ${formatValue(d.moveOut)}人
+            </strong>
+            <br>
+
+            社会増減:
+            <strong>
+                ${formatSigned(d.socialChange)}人
+            </strong>
+        `;
+
+    } else {
+
+        details = `
+            出生数:
+            <strong>
+                ${formatValue(d.births)}人
+            </strong>
+            <br>
+
+            死亡数:
+            <strong>
+                ${formatValue(d.deaths)}人
+            </strong>
+            <br>
+
+            自然増減:
+            <strong>
+                ${formatSigned(d.naturalChange)}人
+            </strong>
+        `;
+    }
+
+    tooltip
+        .html(`
+            市:
+            <strong>
+                ${d.municipality}
+            </strong>
+            <br>
+
+            ${state.label}:
+            <strong>
+                ${formatSelected(
+                    d[state.value]
+                )}人
+            </strong>
+            <br>
+
+            ${details}
+
+            <br>
+
+            2020年人口:
+            <strong>
+                ${formatValue(
+                    d.population
+                )}人
+            </strong>
+        `)
+
+        .style(
+            "left",
+            `${
+                event.clientX -
+                rect.left +
+                25
+            }px`
+        )
+
+        .style(
+            "top",
+            `${
+                event.clientY -
+                rect.top -
+                12
+            }px`
+        )
+
+        .style(
+            "opacity",
+            0.96
+        );
+
+    d3.select(
+        event.currentTarget
+    ).raise();
+}
+
+
+/* =========================
+   全体更新
+========================= */
+
+function update(animate = true) {
+
+    document
+        .querySelector(
+            "#chartTitle"
+        )
+        .textContent =
+        state.title;
+
+    document
+        .querySelector(
+            "#chartDescription"
+        )
+        .textContent =
+        state.description;
+
+    calculateLayout();
+
+    renderAxis(animate);
+
+    renderLegend();
+
+    renderBees(animate);
+}
+
+
+/* =========================
+   起動
+========================= */
+
+async function init() {
+
+    try {
+
+        await loadData();
+
+        initControls();
+
+        // 最初は即表示
+        update(false);
+
+        let timer;
+
+        window.addEventListener(
+            "resize",
+            () => {
+
+                clearTimeout(timer);
+
+                timer =
+                    setTimeout(
+                        () => update(false),
+                        150
+                    );
+            }
+        );
+
+    } catch (error) {
+
+        console.error(error);
+
+        container
+            .append("p")
+            .style(
+                "padding",
+                "30px"
+            )
+            .style(
+                "color",
+                "red"
+            )
+            .text(
+                error.message
             );
+    }
+}
 
-        }
-    );
+init();
