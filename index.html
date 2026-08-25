@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <!-- 検索エンジンに表示されにくくする -->
+    <meta
+        name="robots"
+        content="noindex, nofollow"
+    >
+
+    <title>町田市の人口動態</title>
+
+    <link
+        rel="stylesheet"
+        href="assets/css/styles.css"
+    >
+
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+
+<body class="bg-slate-50 text-slate-800">
+
+
+    <!-- =========================
+         タイトル
+    ========================== -->
+
+    <header class="px-6 pt-12 pb-8">
+
+        <div class="mx-auto max-w-5xl">
+
+            <p
+                class="mb-3 text-sm font-semibold tracking-widest text-orange-600"
+            >
+                東京都町田市 × 人口動態
+            </p>
+
+            <h1
+                class="text-3xl font-bold leading-tight text-slate-900 md:text-5xl"
+            >
+                町田市は転入超過で人を集める一方、
+                <br class="hidden md:block">
+                人口規模を考慮すると見え方が変わる
+            </h1>
+
+            <p
+                class="mt-6 max-w-3xl text-base leading-8 text-slate-600 md:text-lg"
+            >
+                東京都26市と町田市を比較し、
+                人口の増減を「人数」と
+                「人口1,000人あたり」の
+                2つの視点から見ていきます。
+            </p>
+
+        </div>
+
+    </header>
+
+
+
+    <main class="px-6 pb-16">
+
+        <div class="mx-auto max-w-5xl">
+
+
+            <!-- =========================
+                 問い
+            ========================== -->
+
+            <section
+                class="shadow-card mb-10 rounded-3xl bg-white p-7 md:p-10"
+            >
+
+                <p
+                    class="text-sm font-semibold tracking-wider text-orange-600"
+                >
+                    問い
+                </p>
+
+                <h2
+                    class="mt-3 text-2xl font-bold text-slate-900"
+                >
+                    町田市の人口動態は、
+                    人数で見た場合と人口規模を考慮した場合で、
+                    どのように見え方が変わるのか？
+                </h2>
+
+                <p
+                    class="mt-5 leading-8 text-slate-600"
+                >
+                    人口が多い都市ほど、出生・死亡・転入・転出の
+                    人数そのものも大きくなりやすくなります。
+                    そこで、実際の人数だけでなく
+                    「人口1,000人あたり」の値でも比較し、
+                    町田市の人口動態の特徴を考えます。
+                </p>
+
+            </section>
+
+
+
+            <!-- =========================
+                 グラフ
+            ========================== -->
+
+            <section
+                class="shadow-card rounded-3xl bg-white p-5 md:p-8"
+            >
+
+                <div class="mb-6">
+
+                    <p
+                        class="text-sm font-semibold tracking-wider text-orange-600"
+                    >
+                        人口動態の比較
+                    </p>
+
+                    <h2
+                        id="chartTitle"
+                        class="mt-2 text-2xl font-bold text-slate-900"
+                    >
+                        社会増減（転入者数 − 転出者数）
+                    </h2>
+
+                    <p
+                        id="chartDescription"
+                        class="mt-2 text-sm text-slate-500"
+                    >
+                        2024年・0より右が転入超過、左が転出超過・人数で比較
+                    </p>
+
+                </div>
+
+
+                <!-- 切り替えボタン -->
+                <div
+                    id="variableSelector"
+                    class="mb-5"
+                ></div>
+
+
+                <!-- D3グラフ -->
+                <div
+                    id="viewportContainer"
+                    class="relative w-full overflow-hidden"
+                ></div>
+
+            </section>
+
+
+
+            <!-- =========================
+                 グラフの見方
+            ========================== -->
+
+            <section
+                class="mt-10 grid gap-6 md:grid-cols-2"
+            >
+
+
+                <div
+                    class="shadow-card rounded-3xl bg-white p-7"
+                >
+
+                    <p
+                        class="text-sm font-semibold tracking-wider text-orange-600"
+                    >
+                        グラフの見方
+                    </p>
+
+                    <h2
+                        class="mt-2 text-xl font-bold text-slate-900"
+                    >
+                        グラフの見方
+                    </h2>
+
+                    <p
+                        class="mt-4 leading-8 text-slate-600"
+                    >
+                        横軸は選択した指標の値を表しています。
+                        オレンジ色の円が
+                        <strong class="text-slate-900">
+                            町田市
+                        </strong>
+                        、青色の円が東京都のその他の市です。
+                    </p>
+
+                    <p
+                        class="mt-3 leading-8 text-slate-600"
+                    >
+                        円の大きさは
+                        <strong class="text-slate-900">
+                            2020年の人口
+                        </strong>
+                        を表しています。
+                        縦方向には量的な意味はなく、
+                        円同士の重なりを避けるために配置しています。
+                    </p>
+
+                    <p
+                        class="mt-3 leading-8 text-slate-600"
+                    >
+                        各円にカーソルを合わせると、
+                        市名や詳しい値、東京都26市中の順位を
+                        確認できます。
+                    </p>
+
+                </div>
+
+
+
+                <div
+                    class="shadow-card rounded-3xl bg-white p-7"
+                >
+
+                    <p
+                        class="text-sm font-semibold tracking-wider text-orange-600"
+                    >
+                        比較方法
+                    </p>
+
+                    <h2
+                        class="mt-2 text-xl font-bold text-slate-900"
+                    >
+                        2つの比較方法
+                    </h2>
+
+                    <div class="mt-5">
+
+                        <h3
+                            class="font-bold text-slate-900"
+                        >
+                            人数
+                        </h3>
+
+                        <p
+                            class="mt-1 leading-7 text-slate-600"
+                        >
+                            実際に何人が出生・死亡・転入・転出したのかを
+                            そのまま比較します。
+                        </p>
+
+                    </div>
+
+
+                    <div class="mt-5">
+
+                        <h3
+                            class="font-bold text-slate-900"
+                        >
+                            人口1,000人あたり
+                        </h3>
+
+                        <p
+                            class="mt-1 leading-7 text-slate-600"
+                        >
+                            各市の人口規模の違いを考慮して比較します。
+                            人口の多さによる影響を小さくし、
+                            各市の特徴を比較できます。
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+
+            <!-- =========================
+                 分析
+            ========================== -->
+
+            <section
+                class="shadow-card mt-10 rounded-3xl bg-white p-7 md:p-10"
+            >
+
+                <p
+                    class="text-sm font-semibold tracking-wider text-orange-600"
+                >
+                    分析
+                </p>
+
+                <h2
+                    class="mt-2 text-2xl font-bold text-slate-900"
+                >
+                    人数だけでは分からない町田市の特徴
+                </h2>
+
+                <p
+                    class="mt-5 leading-8 text-slate-600"
+                >
+                    町田市は、人数で見ると
+                    <strong class="text-slate-900">
+                        社会増減が +1,724人
+                    </strong>
+                    となっており、転入者数が転出者数を上回っています。
+                    一方で、
+                    <strong class="text-slate-900">
+                        自然増減は −2,677人
+                    </strong>
+                    となっており、出生数より死亡数が多い状態です。
+                </p>
+
+                <p
+                    class="mt-4 leading-8 text-slate-600"
+                >
+                    そのため人数だけを見ると、
+                    町田市は「転入によって多くの人を集める一方で、
+                    自然減も大きい都市」と見ることができます。
+                </p>
+
+                <p
+                    class="mt-4 leading-8 text-slate-600"
+                >
+                    しかし、人口1,000人あたりに切り替えて比較すると、
+                    人数で比較したときほど町田市だけが
+                    突出しているわけではありません。
+                    町田市の人口規模そのものが大きいことも、
+                    人数の大きさに影響していることが分かります。
+                </p>
+
+            </section>
+
+
+
+            <!-- =========================
+                 結論
+            ========================== -->
+
+            <section
+                class="mt-10 rounded-3xl bg-slate-900 p-7 text-white md:p-10"
+            >
+
+                <p
+                    class="text-sm font-semibold tracking-wider text-orange-400"
+                >
+                    結論
+                </p>
+
+                <h2
+                    class="mt-3 text-2xl font-bold md:text-3xl"
+                >
+                    町田市の人口動態は、
+                    人口規模を考慮すると違った姿が見える
+                </h2>
+
+                <p
+                    class="mt-6 leading-8 text-slate-300"
+                >
+                    町田市では転入者数が転出者数を上回る
+                    「転入超過」が見られる一方で、
+                    出生数より死亡数が多い「自然減」が生じています。
+                </p>
+
+                <p
+                    class="mt-4 leading-8 text-slate-300"
+                >
+                    ただし、人数だけでは人口の多い都市ほど
+                    値が大きくなりやすいため、
+                    人口1,000人あたりでも比較する必要があります。
+                    その結果、町田市の社会増の大きさには、
+                    町田市自身の人口規模も影響していることが
+                    見えてきます。
+                </p>
+
+                <p
+                    class="mt-4 leading-8 font-semibold text-white"
+                >
+                    このことから、町田市の人口動態を理解するには、
+                    人数だけでなく人口規模を考慮した比較も行い、
+                    「転入超過」と「自然減」の両方から
+                    捉えることが重要だと考えられます。
+                </p>
+
+            </section>
+
+
+
+            <!-- =========================
+                 データについて
+            ========================== -->
+
+            <section
+                class="mt-10 rounded-3xl border border-slate-200 bg-slate-100 p-7"
+            >
+
+                <h2
+                    class="font-bold text-slate-900"
+                >
+                    データについて
+                </h2>
+
+                <p
+                    class="mt-3 text-sm leading-7 text-slate-600"
+                >
+                    人口は2020年、出生数・死亡数は2023年、
+                    転入者数・転出者数は2024年のデータを使用しています。
+                    そのため、社会増減と自然増減を単純に合算して
+                    人口全体の増減とはしていません。
+                </p>
+
+                <p
+                    class="mt-2 text-sm leading-7 text-slate-600"
+                >
+                    「人口1,000人あたり」の値は、
+                    SSDSEに収録されている2020年人口を基準に
+                    算出しています。
+                </p>
+
+                <p
+                    class="mt-2 text-sm leading-7 text-slate-600"
+                >
+                    今回使用した対象指標については、
+                    東京都26市を比較対象とし、
+                    比較可能なデータを表示しています。
+                </p>
+
+            </section>
+
+
+
+            <!-- =========================
+                 出典
+            ========================== -->
+
+            <footer
+                class="mt-10 border-t border-slate-200 pt-7 text-sm leading-7 text-slate-500"
+            >
+
+                <p>
+                    <strong class="text-slate-700">
+                        データ出典：
+                    </strong>
+
+                    SSDSE（教育用標準データセット）
+                    SSDSE-A-2026
+                </p>
+
+                <p>
+                    <strong class="text-slate-700">
+                        提供：
+                    </strong>
+
+                    独立行政法人 統計センター
+                </p>
+
+                <p>
+                    <strong class="text-slate-700">
+                        URL：
+                    </strong>
+
+                    <a
+                        href="https://www.nstac.go.jp/use/literacy/ssdse/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="text-orange-600 underline"
+                    >
+                        SSDSE（教育用標準データセット）
+                    </a>
+                </p>
+
+                <p>
+                    <strong class="text-slate-700">
+                        取得日：
+                    </strong>
+
+                    2026年8月25日
+                </p>
+
+            </footer>
+
+
+        </div>
+
+    </main>
+
+
+
+    <!-- =========================
+         JavaScript
+    ========================== -->
+
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"
+    ></script>
+
+    <script
+        src="assets/js/main.js"
+    ></script>
+
+
+</body>
+</html>
